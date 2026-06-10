@@ -63,9 +63,9 @@ const SUB_LABELS: Record<string,string> = {
   layer1:"Layer 1", meme:"Meme", defi:"DeFi", layer2:"Layer 2",
 };
 
-function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:()=>void }) {
+function AssetModal({ onSelect, onClose, defaultTab = "otcfx" }: { onSelect:(a:Asset)=>void; onClose:()=>void; defaultTab?: string }) {
   const [q, setQ]     = useState("");
-  const [tab, setTab] = useState<string>("all");
+  const [tab, setTab] = useState<string>(defaultTab);
 
   const filtered = ALL_SELECTABLE.filter(a => {
     let matchTab = false;
@@ -124,15 +124,20 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
               }`}>
                 {a.label.slice(0,3)}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="text-white text-xs font-bold">{a.label}</div>
-                <div className="text-slate-500 text-xs truncate max-w-[80px]">{a.name}</div>
+                <div className="text-slate-500 text-xs truncate">{a.name}</div>
+                {tab === "all" && (
+                  <div className={`text-xs font-bold mt-0.5 ${a.category === "synthetic" ? "text-purple-400" : a.category === "forex" ? "text-blue-400" : a.category === "crypto" ? "text-yellow-500" : "text-slate-500"}`}>
+                    {a.category === "synthetic" ? "OTC" : a.category === "forex" ? "Forex" : a.category === "crypto" ? "Crypto" : a.category}
+                  </div>
+                )}
               </div>
               {a.category === "synthetic"
-                ? <span className="mr-auto text-xs text-purple-400">⚡</span>
+                ? <span className="text-xs text-purple-400">⚡</span>
                 : (tab === "otcfx" && a.deriv)
-                  ? <span className="mr-auto text-xs text-purple-400">⚡</span>
-                  : a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
+                  ? <span className="text-xs text-purple-400">⚡</span>
+                  : a.deriv && <span className="text-xs text-emerald-600">●</span>}
             </button>
           ))}
           {filtered.length === 0 && (
