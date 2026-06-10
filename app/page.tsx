@@ -57,10 +57,10 @@ const CANDLE_SIG = {
 
 // ── Asset Selector Modal ──────────────────────────────────────────────────────
 const ALL_SELECTABLE = ASSETS.filter(a => a.category !== "index");
-const SUB_TABS = ["all","forex","layer1","meme","defi","layer2","synthetic"] as const;
+const SUB_TABS = ["all","synthetic","forex","layer1","meme","defi","layer2"] as const;
 const SUB_LABELS: Record<string,string> = {
-  all:"الكل", forex:"فوركس", layer1:"Layer 1",
-  meme:"Meme", defi:"DeFi", layer2:"Layer 2", synthetic:"OTC"
+  all:"الكل", synthetic:"⚡ OTC", forex:"فوركس", layer1:"Layer 1",
+  meme:"Meme", defi:"DeFi", layer2:"Layer 2",
 };
 
 function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:()=>void }) {
@@ -95,7 +95,13 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
           {SUB_TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors ${
-                tab === t ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#0d0d14] border-[#1e1e30] text-slate-400"
+                tab === t
+                  ? t === "synthetic"
+                    ? "bg-purple-600 border-purple-500 text-white"
+                    : "bg-indigo-600 border-indigo-500 text-white"
+                  : t === "synthetic"
+                    ? "bg-purple-950/40 border-purple-700/50 text-purple-300"
+                    : "bg-[#0d0d14] border-[#1e1e30] text-slate-400"
               }`}>
               {SUB_LABELS[t]}
             </button>
@@ -105,8 +111,16 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
         <div className="overflow-y-auto flex-1 p-3 grid grid-cols-2 gap-2">
           {filtered.map(a => (
             <button key={a.id} onClick={() => { onSelect(a); onClose(); }}
-              className="flex items-center gap-2 bg-[#0d0d14] border border-[#1e1e30] rounded-xl p-2.5 hover:border-indigo-500/50 hover:bg-indigo-950/20 transition-colors text-left">
-              <div className="w-8 h-8 rounded-full bg-indigo-900/40 border border-indigo-500/30 flex items-center justify-center text-xs font-black text-indigo-300">
+              className={`flex items-center gap-2 border rounded-xl p-2.5 transition-colors text-left ${
+                a.category === "synthetic"
+                  ? "bg-purple-950/20 border-purple-700/40 hover:border-purple-500/70 hover:bg-purple-950/40"
+                  : "bg-[#0d0d14] border-[#1e1e30] hover:border-indigo-500/50 hover:bg-indigo-950/20"
+              }`}>
+              <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${
+                a.category === "synthetic"
+                  ? "bg-purple-900/40 border-purple-500/30 text-purple-300"
+                  : "bg-indigo-900/40 border-indigo-500/30 text-indigo-300"
+              }`}>
                 {a.label.slice(0,3)}
               </div>
               <div>
@@ -114,7 +128,7 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
                 <div className="text-slate-500 text-xs truncate max-w-[80px]">{a.name}</div>
               </div>
               {a.category === "synthetic"
-                ? <span className="mr-auto text-xs text-purple-500">⚡</span>
+                ? <span className="mr-auto text-xs text-purple-400">⚡</span>
                 : a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
             </button>
           ))}
