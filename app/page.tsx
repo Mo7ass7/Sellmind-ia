@@ -57,10 +57,10 @@ const CANDLE_SIG = {
 
 // ── Asset Selector Modal ──────────────────────────────────────────────────────
 const ALL_SELECTABLE = ASSETS.filter(a => a.category !== "index");
-const SUB_TABS = ["all","synthetic","forex","layer1","meme","defi","layer2"] as const;
+const SUB_TABS = ["all","otcfx","synthetic","forex","layer1","meme","defi","layer2"] as const;
 const SUB_LABELS: Record<string,string> = {
-  all:"الكل", synthetic:"⚡ OTC", forex:"فوركس", layer1:"Layer 1",
-  meme:"Meme", defi:"DeFi", layer2:"Layer 2",
+  all:"الكل", otcfx:"⚡ OTC فوركس", synthetic:"🎲 مؤشرات", forex:"فوركس",
+  layer1:"Layer 1", meme:"Meme", defi:"DeFi", layer2:"Layer 2",
 };
 
 function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:()=>void }) {
@@ -69,8 +69,9 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
 
   const filtered = ALL_SELECTABLE.filter(a => {
     let matchTab = false;
-    if (tab === "all")       matchTab = true;
-    else if (tab === "forex") matchTab = a.category === "forex";
+    if (tab === "all")            matchTab = true;
+    else if (tab === "forex")     matchTab = a.category === "forex";
+    else if (tab === "otcfx")     matchTab = a.category === "forex" && !!a.deriv;
     else if (tab === "synthetic") matchTab = a.category === "synthetic";
     else matchTab = a.sub === tab;
     const matchQ = q === "" || a.label.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
@@ -96,10 +97,10 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
             <button key={t} onClick={() => setTab(t)}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors ${
                 tab === t
-                  ? t === "synthetic"
+                  ? (t === "otcfx" || t === "synthetic")
                     ? "bg-purple-600 border-purple-500 text-white"
                     : "bg-indigo-600 border-indigo-500 text-white"
-                  : t === "synthetic"
+                  : (t === "otcfx" || t === "synthetic")
                     ? "bg-purple-950/40 border-purple-700/50 text-purple-300"
                     : "bg-[#0d0d14] border-[#1e1e30] text-slate-400"
               }`}>
@@ -112,12 +113,12 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
           {filtered.map(a => (
             <button key={a.id} onClick={() => { onSelect(a); onClose(); }}
               className={`flex items-center gap-2 border rounded-xl p-2.5 transition-colors text-left ${
-                a.category === "synthetic"
+                a.category === "synthetic" || (a.category === "forex" && !!a.deriv && tab === "otcfx")
                   ? "bg-purple-950/20 border-purple-700/40 hover:border-purple-500/70 hover:bg-purple-950/40"
                   : "bg-[#0d0d14] border-[#1e1e30] hover:border-indigo-500/50 hover:bg-indigo-950/20"
               }`}>
               <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${
-                a.category === "synthetic"
+                a.category === "synthetic" || (a.category === "forex" && !!a.deriv && tab === "otcfx")
                   ? "bg-purple-900/40 border-purple-500/30 text-purple-300"
                   : "bg-indigo-900/40 border-indigo-500/30 text-indigo-300"
               }`}>
@@ -129,7 +130,9 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
               </div>
               {a.category === "synthetic"
                 ? <span className="mr-auto text-xs text-purple-400">⚡</span>
-                : a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
+                : (tab === "otcfx" && a.deriv)
+                  ? <span className="mr-auto text-xs text-purple-400">⚡</span>
+                  : a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
             </button>
           ))}
           {filtered.length === 0 && (
