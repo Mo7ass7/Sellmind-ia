@@ -1,406 +1,385 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
+import { ASSETS, CATEGORY_LABEL, SUB_LABEL, Asset } from "@/lib/assets";
 
+// ── Types ────────────────────────────────────────────────────────────────────
 type SignalType = "BUY" | "SELL" | "NEUTRAL";
+type Direction  = "UP" | "DOWN" | "NEUTRAL";
 
-type Direction = "UP" | "DOWN" | "NEUTRAL";
-
-interface CandlePattern {
-  name: string;
-  nameAr: string;
-  direction: Direction;
-  strength: 1 | 2 | 3;
-  emoji: string;
-}
-
-interface CandleAnalysis {
-  patterns: CandlePattern[];
-  prediction: Direction;
-  confidence: number;
-  label: string;
-  upCount: number;
-  downCount: number;
-}
+interface CandlePattern { name: string; nameAr: string; direction: Direction; strength: 1|2|3; emoji: string }
+interface CandleAnalysis { patterns: CandlePattern[]; prediction: Direction; confidence: number; label: string; upCount: number; downCount: number }
 
 interface Result {
+  source?: string;
   signal: SignalType;
   indicators: Record<string, SignalType>;
-  values: {
-    rsi: number;
-    macd: number;
-    macdSignal: number;
-    macdHist: number;
-    bbUpper: number;
-    bbLower: number;
-    ema20: number;
-    ema50: number;
-    stochK: number;
-    stochD: number;
-    close: number;
-  };
+  values: { rsi: number; macd: number; macdSignal: number; macdHist: number; bbUpper: number; bbLower: number; ema20: number; ema50: number; stochK: number; stochD: number; close: number };
   candles: CandleAnalysis;
-  buyCount: number;
-  sellCount: number;
-  totalCount: number;
-  symbol: string;
-  currency: string;
-  price: number;
-  interval: string;
-  timestamp: string;
+  buyCount: number; sellCount: number; totalCount: number;
+  price: number; interval: string; timestamp: string;
   error?: string;
 }
 
-const INTERVALS = ["1m", "5m", "15m", "30m", "1h", "1d"];
-
-const INTERVAL_LABELS: Record<string, string> = {
-  "1m": "1 دقيقة",
-  "5m": "5 دقائق",
-  "15m": "15 دقيقة",
-  "30m": "30 دقيقة",
-  "1h": "ساعة",
-  "1d": "يومي",
-};
-
-const POPULAR_SYMBOLS = [
-  "BTC-USD", "ETH-USD", "BNB-USD",
-  "EURUSD=X", "GBPUSD=X", "USDJPY=X",
-  "GC=F", "CL=F", "AAPL",
-];
+// ── Constants ─────────────────────────────────────────────────────────────────
+const INTERVALS = ["1m","5m","15m","30m","1h","1d"];
+const INTERVAL_AR: Record<string,string> = { "1m":"1 دقيقة","5m":"5 دقائق","15m":"15 دقيقة","30m":"30 دقيقة","1h":"ساعة","1d":"يومي" };
+const PAYOUT = 85;
 
 const SIG = {
-  BUY:     { label: "شراء",  emoji: "✅", text: "text-emerald-400", bg: "bg-emerald-950/60 border-emerald-500/50", glow: "glow-green" },
-  SELL:    { label: "بيع",   emoji: "🔴", bg: "bg-red-950/60 border-red-500/50",     text: "text-red-400",     glow: "glow-red" },
-  NEUTRAL: { label: "انتظر", emoji: "⏳", bg: "bg-yellow-950/60 border-yellow-500/50", text: "text-yellow-400", glow: "glow-yellow" },
+  BUY:     { label:"شراء",  emoji:"✅", text:"text-emerald-400", bg:"bg-emerald-950/60 border-emerald-500/50" },
+  SELL:    { label:"بيع",   emoji:"🔴", text:"text-red-400",     bg:"bg-red-950/60 border-red-500/50" },
+  NEUTRAL: { label:"انتظر", emoji:"⏳", text:"text-yellow-400",  bg:"bg-yellow-950/60 border-yellow-500/50" },
 };
-
-function Badge({ sig }: { sig: SignalType }) {
-  const c = SIG[sig];
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs font-bold border ${c.text} ${c.bg}`}>
-      {c.emoji} {c.label}
-    </span>
-  );
-}
-
-function IndicatorRow({ name, sig, detail }: { name: string; sig: SignalType; detail: string }) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-[#1e1e30] last:border-0">
-      <div className="flex items-center gap-3">
-        <Badge sig={sig} />
-        <span className="text-slate-400 text-sm">{detail}</span>
-      </div>
-      <span className="text-slate-200 font-semibold text-sm">{name}</span>
-    </div>
-  );
-}
-
-function RSIBar({ value }: { value: number }) {
-  const pct = Math.min(Math.max(value, 0), 100);
-  const color = value < 30 ? "bg-emerald-500" : value > 70 ? "bg-red-500" : "bg-slate-400";
-  return (
-    <div className="flex items-center gap-2 mt-1">
-      <div className="flex-1 h-1.5 bg-[#1e1e30] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs text-slate-400 w-8">{pct.toFixed(0)}</span>
-    </div>
-  );
-}
 
 const CANDLE_SIG = {
-  UP:      { label: "إغلاق أخضر",  color: "text-emerald-400", bg: "bg-emerald-950/50 border-emerald-500/50", icon: "🟢", arrow: "↑" },
-  DOWN:    { label: "إغلاق أحمر",  color: "text-red-400",     bg: "bg-red-950/50 border-red-500/50",         icon: "🔴", arrow: "↓" },
-  NEUTRAL: { label: "غير محدد",    color: "text-slate-400",   bg: "bg-[#13131f] border-[#1e1e30]",           icon: "⚪", arrow: "→" },
+  UP:      { label:"إغلاق أخضر ↑", color:"text-emerald-400", bg:"bg-emerald-950/40 border-emerald-500/30" },
+  DOWN:    { label:"إغلاق أحمر ↓", color:"text-red-400",     bg:"bg-red-950/40 border-red-500/30" },
+  NEUTRAL: { label:"غير محدد",     color:"text-slate-400",   bg:"bg-[#13131f] border-[#1e1e30]" },
 };
 
-const STR_LABEL: Record<number, string> = { 1: "ضعيف", 2: "متوسط", 3: "قوي" };
-const STR_COLOR: Record<number, string> = { 1: "text-slate-500", 2: "text-yellow-400", 3: "text-emerald-400" };
+// ── Asset Selector Modal ──────────────────────────────────────────────────────
+const CRYPTO_ASSETS = ASSETS.filter(a => a.category === "crypto" || a.category === "synthetic");
+const SUB_TABS = ["all","layer1","meme","defi","layer2","synthetic"] as const;
+const SUB_LABELS: Record<string,string> = { all:"الكل", layer1:"Layer 1", meme:"Meme", defi:"DeFi", layer2:"Layer 2", synthetic:"OTC" };
 
-function CandleSection({ candles }: { candles: CandleAnalysis }) {
-  const cs = CANDLE_SIG[candles.prediction];
-  const [expanded, setExpanded] = useState(false);
+function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:()=>void }) {
+  const [q, setQ]     = useState("");
+  const [tab, setTab] = useState<string>("all");
+
+  const filtered = CRYPTO_ASSETS.filter(a => {
+    const matchTab = tab === "all" ? true : tab === "synthetic" ? a.category === "synthetic" : a.sub === tab;
+    const matchQ   = q === "" || a.label.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
+    return matchTab && matchQ;
+  });
 
   return (
-    <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-4">
-      <h2 className="text-slate-300 font-bold mb-3 text-sm flex items-center gap-2">
-        🕯️ تحليل الشمعة الحالية
-        <span className="text-slate-600 text-xs font-normal">(OTC)</span>
-      </h2>
-
-      {/* Prediction banner */}
-      <div className={`border rounded-xl p-4 mb-3 flex items-center justify-between ${cs.bg}`}>
-        <div>
-          <div className={`text-2xl font-black ${cs.color}`}>
-            {cs.arrow} {cs.label}
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-2" onClick={onClose}>
+      <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="p-4 border-b border-[#1e1e30]">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-white font-bold">اختر عملة رقمية</span>
+            <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
           </div>
-          <div className="text-slate-500 text-xs mt-0.5">
-            {candles.patterns.length > 0
-              ? `${candles.patterns.length} نمط محدد · ثقة ${candles.confidence}%`
-              : "لم يُكتشف نمط واضح"}
-          </div>
+          <input
+            autoFocus
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="ابحث... BTC, ETH, SOL"
+            className="w-full bg-[#0d0d14] border border-[#1e1e30] rounded-xl px-4 py-2 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+            dir="ltr"
+          />
         </div>
-        <span className="text-4xl">{cs.icon}</span>
-      </div>
 
-      {/* Confidence bar */}
-      {candles.confidence > 0 && (
-        <div className="mb-3">
-          <div className="flex justify-between text-xs text-slate-500 mb-1">
-            <span>قوة الإشارة</span>
-            <span>{candles.confidence}%</span>
-          </div>
-          <div className="h-2 bg-[#0d0d14] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                candles.prediction === "UP" ? "bg-emerald-500" :
-                candles.prediction === "DOWN" ? "bg-red-500" : "bg-slate-500"
-              }`}
-              style={{ width: `${candles.confidence}%` }}
-            />
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 px-3 pt-2 overflow-x-auto pb-1">
+          {SUB_TABS.map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors ${
+                tab === t ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#0d0d14] border-[#1e1e30] text-slate-400"
+              }`}>
+              {SUB_LABELS[t]}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Patterns list */}
-      {candles.patterns.length > 0 && (
-        <>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full text-xs text-slate-500 hover:text-slate-300 text-right transition-colors mb-2"
-          >
-            {expanded ? "▲ إخفاء الأنماط" : `▼ عرض ${candles.patterns.length} نمط مكتشف`}
-          </button>
-
-          {expanded && (
-            <div className="space-y-1.5">
-              {candles.patterns.map((p, i) => {
-                const dir = p.direction === "UP"
-                  ? "text-emerald-400" : p.direction === "DOWN"
-                  ? "text-red-400" : "text-slate-400";
-                return (
-                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#1e1e30] last:border-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold ${STR_COLOR[p.strength]}`}>
-                        {"★".repeat(p.strength)}
-                      </span>
-                      <span className={`text-xs ${dir}`}>
-                        {p.direction === "UP" ? "↑" : p.direction === "DOWN" ? "↓" : "→"}
-                        {" "}{STR_LABEL[p.strength]}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-200 text-sm">{p.emoji} {p.nameAr}</span>
-                      <span className="text-slate-600 text-xs mr-1">({p.name})</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* List */}
+        <div className="overflow-y-auto flex-1 p-3 grid grid-cols-2 gap-2">
+          {filtered.map(a => (
+            <button key={a.id} onClick={() => { onSelect(a); onClose(); }}
+              className="flex items-center gap-2 bg-[#0d0d14] border border-[#1e1e30] rounded-xl p-2.5 hover:border-indigo-500/50 hover:bg-indigo-950/20 transition-colors text-left">
+              <div className="w-8 h-8 rounded-full bg-indigo-900/40 border border-indigo-500/30 flex items-center justify-center text-xs font-black text-indigo-300">
+                {a.label.slice(0,3)}
+              </div>
+              <div>
+                <div className="text-white text-xs font-bold">{a.label}</div>
+                <div className="text-slate-500 text-xs truncate max-w-[80px]">{a.name}</div>
+              </div>
+              {a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div className="col-span-2 text-center text-slate-600 py-8 text-sm">لا توجد نتائج</div>
           )}
-        </>
-      )}
-
-      {candles.patterns.length === 0 && (
-        <p className="text-slate-600 text-xs text-center py-2">
-          لا توجد أنماط شمعيات واضحة في الوقت الحالي
-        </p>
-      )}
+        </div>
+        <div className="px-4 py-2 border-t border-[#1e1e30]">
+          <span className="text-xs text-slate-600">● = بيانات Deriv (OTC) متاحة</span>
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function Page() {
-  const [symbol, setSymbol]     = useState("BTC-USD");
-  const [interval, setInterval] = useState("1h");
-  const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState<Result | null>(null);
-  const [error, setError]       = useState<string | null>(null);
+// ── Indicator Row ─────────────────────────────────────────────────────────────
+function IndicatorRow({ name, sig, detail }: { name:string; sig:SignalType; detail:string }) {
+  const c = SIG[sig];
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-[#1e1e30] last:border-0">
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${c.text} ${c.bg}`}>{c.emoji} {c.label}</span>
+        <span className="text-slate-500 text-xs">{detail}</span>
+      </div>
+      <span className="text-slate-300 text-xs font-medium">{name}</span>
+    </div>
+  );
+}
 
-  const analyze = useCallback(async () => {
-    if (!symbol.trim()) return;
+// ── Main Page ─────────────────────────────────────────────────────────────────
+export default function Page() {
+  const [asset,     setAsset]    = useState<Asset>(ASSETS.find(a=>a.id==="BTCUSD")!);
+  const [interval,  setInterval] = useState("1m");
+  const [loading,   setLoading]  = useState(false);
+  const [result,    setResult]   = useState<Result | null>(null);
+  const [error,     setError]    = useState<string | null>(null);
+  const [showModal, setShowModal]= useState(false);
+  const [showDetail,setShowDetail]=useState(false);
+  const [showCandle,setShowCandle]=useState(false);
+  const timerRef = useRef<ReturnType<typeof globalThis.setInterval>|null>(null);
+
+  const analyze = useCallback(async (a = asset, iv = interval) => {
     setLoading(true);
     setError(null);
-    setResult(null);
-
     try {
-      const res = await fetch(`/api/signal?symbol=${encodeURIComponent(symbol.trim())}&interval=${interval}`);
+      let res;
+      // Use Deriv API if symbol available, else Yahoo Finance
+      if (a.deriv) {
+        res = await fetch(`/api/deriv?symbol=${encodeURIComponent(a.deriv)}&interval=${iv}`);
+      } else {
+        res = await fetch(`/api/signal?symbol=${encodeURIComponent(a.yahoo)}&interval=${iv}`);
+      }
       const data: Result = await res.json();
-
       if (data.error) throw new Error(data.error);
       setResult(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
+      setError(e instanceof Error ? e.message : "خطأ غير متوقع");
     } finally {
       setLoading(false);
     }
-  }, [symbol, interval]);
+  }, [asset, interval]);
 
-  const v = result?.values;
-  const sig = result ? SIG[result.signal] : null;
+  // Auto-refresh every 60s
+  useEffect(() => {
+    if (timerRef.current) globalThis.clearInterval(timerRef.current);
+    timerRef.current = globalThis.setInterval(() => analyze(), 60_000);
+    return () => { if (timerRef.current) globalThis.clearInterval(timerRef.current); };
+  }, [analyze]);
 
-  const indicatorDetails: Record<string, string> = v
-    ? {
-        "RSI (14)":          `RSI = ${v.rsi.toFixed(1)}`,
-        "MACD (12/26/9)":    `Hist = ${v.macdHist.toFixed(4)}`,
-        "Bollinger Bands":   `السعر: ${v.close.toFixed(4)} | نطاق: ${v.bbLower.toFixed(4)} – ${v.bbUpper.toFixed(4)}`,
-        "EMA (20/50)":       `EMA20 = ${v.ema20.toFixed(4)} | EMA50 = ${v.ema50.toFixed(4)}`,
-        "Stochastic (14/3)": `K = ${v.stochK.toFixed(1)} | D = ${v.stochD.toFixed(1)}`,
-      }
-    : {};
+  const sig  = result ? SIG[result.signal] : null;
+  const cSig = result?.candles ? CANDLE_SIG[result.candles.prediction] : null;
+  const v    = result?.values;
+
+  const indDetails: Record<string,string> = v ? {
+    "RSI (14)":          `RSI = ${v.rsi.toFixed(1)}`,
+    "MACD (12/26/9)":    `Hist = ${v.macdHist.toFixed(5)}`,
+    "Bollinger Bands":   `${v.bbLower.toFixed(4)} ← ${v.close.toFixed(4)} → ${v.bbUpper.toFixed(4)}`,
+    "EMA (20/50)":       `EMA20=${v.ema20.toFixed(4)} | EMA50=${v.ema50.toFixed(4)}`,
+    "Stochastic (14/3)": `K=${v.stochK.toFixed(1)} D=${v.stochD.toFixed(1)}`,
+  } : {};
 
   return (
-    <main className="min-h-screen bg-[#0d0d14] px-4 py-8">
-      <div className="max-w-xl mx-auto">
+    <main className="min-h-screen bg-[#0a0a12] px-3 py-4">
+      {showModal && <AssetModal onSelect={a => { setAsset(a); setTimeout(() => analyze(a, interval), 100); }} onClose={() => setShowModal(false)} />}
+
+      <div className="max-w-md mx-auto">
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black text-white mb-1">
-            📊 Sellmind <span className="text-indigo-400">IA</span>
-          </h1>
-          <p className="text-slate-400 text-sm">
-            إشارة شراء أو بيع فقط عند تطابق جميع المؤشرات
-          </p>
-          <Link
-            href="/scanner"
-            className="mt-3 inline-block px-4 py-1.5 bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs rounded-full hover:bg-indigo-600/40 transition-colors"
-          >
-            🔭 ماسح جميع الأسواق (Quotex)
-          </Link>
+        <div className="flex items-center justify-between mb-4">
+          <Link href="/scanner" className="text-slate-500 hover:text-indigo-400 text-xs transition-colors">🔭 ماسح</Link>
+          <h1 className="text-xl font-black text-white">📊 Sellmind <span className="text-indigo-400">IA</span></h1>
+          <div className="text-xs text-slate-600">{result?.source === "deriv" ? "🟢 Deriv" : "🔵 Yahoo"}</div>
         </div>
 
-        {/* Form */}
-        <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-5 mb-5">
-
-          {/* Symbol input */}
-          <label className="block text-slate-300 text-sm mb-1.5 font-semibold">رمز العملة أو الزوج</label>
-          <input
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && analyze()}
-            placeholder="مثال: BTC-USD, EURUSD=X, AAPL"
-            className="w-full bg-[#0d0d14] border border-[#1e1e30] text-white rounded-xl px-4 py-2.5 text-sm placeholder-slate-600 focus:outline-none focus:border-indigo-500 mb-3"
-            dir="ltr"
-          />
-
-          {/* Quick symbols */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {POPULAR_SYMBOLS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSymbol(s)}
-                className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
-                  symbol === s
-                    ? "bg-indigo-600 border-indigo-500 text-white"
-                    : "bg-[#0d0d14] border-[#1e1e30] text-slate-400 hover:border-indigo-500/50 hover:text-white"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+        {/* Asset Selector */}
+        <button onClick={() => setShowModal(true)}
+          className="w-full bg-[#13131f] border border-[#1e1e30] hover:border-indigo-500/50 rounded-2xl p-4 mb-3 flex items-center justify-between transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-indigo-900/50 border border-indigo-500/40 flex items-center justify-center text-sm font-black text-indigo-300">
+              {asset.label.slice(0,3)}
+            </div>
+            <div className="text-right">
+              <div className="text-white font-bold">{asset.label}/USD</div>
+              <div className="text-slate-500 text-xs">{asset.name}</div>
+            </div>
           </div>
+          <div className="text-slate-400 text-xs">تغيير ▼</div>
+        </button>
 
-          {/* Interval */}
-          <label className="block text-slate-300 text-sm mb-1.5 font-semibold">الإطار الزمني</label>
-          <div className="grid grid-cols-6 gap-1.5 mb-5">
-            {INTERVALS.map((iv) => (
-              <button
-                key={iv}
-                onClick={() => setInterval(iv)}
-                className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
-                  interval === iv
-                    ? "bg-indigo-600 border-indigo-500 text-white"
-                    : "bg-[#0d0d14] border-[#1e1e30] text-slate-400 hover:border-indigo-500/50 hover:text-white"
-                }`}
-              >
-                {iv}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={analyze}
-            disabled={loading}
-            className="w-full py-3 rounded-xl font-bold text-base bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
-          >
-            {loading ? "⏳ جاري التحليل..." : "🔍 تحليل الآن"}
-          </button>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-950/50 border border-red-500/40 rounded-2xl p-4 mb-5 text-red-300 text-sm text-center">
-            ⚠️ {error}
+        {/* Live Price */}
+        {result && (
+          <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3 text-center">
+            <div className="text-3xl font-black text-white tracking-tight">
+              {result.price.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+            </div>
+            <div className="text-slate-500 text-xs mt-0.5">
+              USD · {INTERVAL_AR[result.interval]} · {new Date(result.timestamp).toLocaleTimeString("ar-SA")}
+            </div>
           </div>
         )}
 
-        {/* Result */}
+        {/* Interval */}
+        <div className="grid grid-cols-6 gap-1.5 mb-4">
+          {INTERVALS.map(iv => (
+            <button key={iv} onClick={() => { setInterval(iv); analyze(asset, iv); }}
+              className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                interval === iv
+                  ? "bg-indigo-600 border-indigo-500 text-white"
+                  : "bg-[#13131f] border-[#1e1e30] text-slate-400 hover:border-indigo-500/40"
+              }`}>{iv}</button>
+          ))}
+        </div>
+
+        {/* Analyze button */}
+        {!result && (
+          <button onClick={() => analyze()} disabled={loading}
+            className="w-full py-3.5 rounded-2xl font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white mb-4 transition-colors">
+            {loading ? "⏳ جاري التحليل..." : "🔍 تحليل الآن"}
+          </button>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-3 text-red-300 text-sm text-center">⚠️ {error}</div>
+        )}
+
+        {/* ═══ PLATFORM TRADING INTERFACE ═══ */}
         {result && sig && (
           <>
-            {/* Main signal banner */}
-            <div className={`border rounded-2xl p-6 mb-4 text-center ${sig.bg} ${sig.glow}`}>
-              <div className="text-5xl mb-2">{sig.emoji}</div>
-              <div className={`text-3xl font-black mb-1 ${sig.text}`}>{sig.label}</div>
-              <div className="text-slate-400 text-sm">
-                {result.symbol} · {INTERVAL_LABELS[result.interval] || result.interval}
-              </div>
-              <div className="text-2xl font-bold text-white mt-2">
-                {result.price.toLocaleString("en-US", { maximumFractionDigits: 5 })}
-                <span className="text-slate-400 text-sm mr-1">{result.currency}</span>
-              </div>
-            </div>
+            {/* Signal + CALL/PUT Buttons */}
+            <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3">
 
-            {/* Indicator count */}
-            <div className="flex gap-3 mb-4">
-              <div className="flex-1 bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-center">
-                <div className="text-2xl font-black text-emerald-400">{result.buyCount}</div>
-                <div className="text-xs text-slate-400">مؤشرات شراء</div>
-              </div>
-              <div className="flex-1 bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-center">
-                <div className="text-2xl font-black text-red-400">{result.sellCount}</div>
-                <div className="text-xs text-slate-400">مؤشرات بيع</div>
-              </div>
-              <div className="flex-1 bg-[#13131f] border border-[#1e1e30] rounded-xl p-3 text-center">
-                <div className="text-2xl font-black text-slate-300">
-                  {result.totalCount - result.buyCount - result.sellCount}
+              {/* Signal banner */}
+              <div className={`rounded-xl p-3 mb-4 text-center border ${sig.bg}`}>
+                <div className="text-4xl mb-1">{sig.emoji}</div>
+                <div className={`text-2xl font-black ${sig.text}`}>{sig.label}</div>
+                <div className="text-slate-500 text-xs mt-1">
+                  المؤشرات: {result.buyCount} شراء · {result.sellCount} بيع · {result.totalCount - result.buyCount - result.sellCount} محايد
                 </div>
-                <div className="text-xs text-slate-400">محايدة</div>
               </div>
+
+              {/* CALL / PUT Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <button className={`rounded-xl py-4 font-black text-lg transition-all border-2 ${
+                  result.signal === "BUY"
+                    ? "bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-900/50 scale-105"
+                    : "bg-emerald-950/30 border-emerald-800/50 text-emerald-700"
+                }`}>
+                  <div>CALL ↑</div>
+                  <div className="text-xs font-normal mt-0.5 opacity-80">{PAYOUT}% ربح</div>
+                </button>
+
+                <button className={`rounded-xl py-4 font-black text-lg transition-all border-2 ${
+                  result.signal === "SELL"
+                    ? "bg-red-600 border-red-400 text-white shadow-lg shadow-red-900/50 scale-105"
+                    : "bg-red-950/30 border-red-800/50 text-red-700"
+                }`}>
+                  <div>PUT ↓</div>
+                  <div className="text-xs font-normal mt-0.5 opacity-80">{PAYOUT}% ربح</div>
+                </button>
+              </div>
+
+              {/* Candle prediction mini */}
+              {cSig && result.candles.prediction !== "NEUTRAL" && (
+                <div className={`mt-3 rounded-xl p-2.5 border text-center ${cSig.bg}`}>
+                  <span className={`text-sm font-bold ${cSig.color}`}>
+                    🕯️ الشمعة: {cSig.label}
+                    <span className="text-slate-500 font-normal mr-1">({result.candles.confidence}%)</span>
+                  </span>
+                </div>
+              )}
+
+              {/* Loading overlay for refresh */}
+              {loading && (
+                <div className="text-center text-slate-500 text-xs mt-2">⟳ تحديث...</div>
+              )}
             </div>
 
-            {/* Indicators breakdown */}
-            <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-4">
-              <h2 className="text-slate-300 font-bold mb-3 text-sm">تفاصيل المؤشرات</h2>
-              {Object.entries(result.indicators).map(([name, s]) => (
-                <IndicatorRow key={name} name={name} sig={s} detail={indicatorDetails[name] ?? ""} />
+            {/* Indicator strength bars */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {[
+                { v: result.buyCount,    label: "شراء",  c: "text-emerald-400", b: "bg-emerald-950/40 border-emerald-500/30" },
+                { v: result.sellCount,   label: "بيع",   c: "text-red-400",     b: "bg-red-950/40 border-red-500/30" },
+                { v: result.totalCount - result.buyCount - result.sellCount, label: "محايد", c: "text-slate-300", b: "bg-[#13131f] border-[#1e1e30]" },
+              ].map(({ v: val, label, c, b }) => (
+                <div key={label} className={`border rounded-xl p-2.5 text-center ${b}`}>
+                  <div className={`text-2xl font-black ${c}`}>{val}</div>
+                  <div className="text-xs text-slate-500">{label}</div>
+                </div>
               ))}
+            </div>
 
-              {v && (
-                <div className="mt-3 pt-3 border-t border-[#1e1e30]">
-                  <div className="text-xs text-slate-500 mb-1">RSI ({v.rsi.toFixed(1)})</div>
-                  <RSIBar value={v.rsi} />
+            {/* Indicators detail (collapsible) */}
+            <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl mb-3 overflow-hidden">
+              <button onClick={() => setShowDetail(!showDetail)}
+                className="w-full flex items-center justify-between p-4 text-slate-300 text-sm font-bold">
+                <span>📈 تفاصيل المؤشرات</span>
+                <span className="text-slate-500">{showDetail ? "▲" : "▼"}</span>
+              </button>
+              {showDetail && (
+                <div className="px-4 pb-4">
+                  {Object.entries(result.indicators).map(([n, s]) => (
+                    <IndicatorRow key={n} name={n} sig={s} detail={indDetails[n] ?? ""} />
+                  ))}
+                  {v && (
+                    <div className="mt-3 pt-3 border-t border-[#1e1e30]">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>RSI</span><span>{v.rsi.toFixed(1)}</span>
+                      </div>
+                      <div className="h-1.5 bg-[#0d0d14] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${v.rsi < 30 ? "bg-emerald-500" : v.rsi > 70 ? "bg-red-500" : "bg-slate-500"}`}
+                          style={{ width: `${Math.min(v.rsi, 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Candle patterns */}
-            {result.candles && (
-              <CandleSection candles={result.candles} />
-            )}
+            {/* Candle patterns (collapsible) */}
+            <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl mb-4 overflow-hidden">
+              <button onClick={() => setShowCandle(!showCandle)}
+                className="w-full flex items-center justify-between p-4 text-slate-300 text-sm font-bold">
+                <span>🕯️ أنماط الشمعة ({result.candles.patterns.length})</span>
+                <span className={`text-sm font-black ${cSig?.color}`}>{cSig?.label}</span>
+              </button>
+              {showCandle && (
+                <div className="px-4 pb-4 space-y-2">
+                  {result.candles.patterns.length === 0 && (
+                    <p className="text-slate-600 text-xs text-center py-2">لا توجد أنماط واضحة</p>
+                  )}
+                  {result.candles.patterns.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <span className={`text-xs ${p.direction==="UP"?"text-emerald-400":p.direction==="DOWN"?"text-red-400":"text-slate-400"}`}>
+                        {"★".repeat(p.strength)} {p.direction==="UP"?"↑":p.direction==="DOWN"?"↓":"→"}
+                      </span>
+                      <span className="text-slate-200 text-sm">{p.emoji} {p.nameAr}</span>
+                    </div>
+                  ))}
+                  {result.candles.confidence > 0 && (
+                    <div className="mt-2 pt-2 border-t border-[#1e1e30]">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>قوة إشارة الشمعة</span><span>{result.candles.confidence}%</span>
+                      </div>
+                      <div className="h-1.5 bg-[#0d0d14] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${result.candles.prediction==="UP"?"bg-emerald-500":result.candles.prediction==="DOWN"?"bg-red-500":"bg-slate-500"}`}
+                          style={{ width: `${result.candles.confidence}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-            {/* Timestamp */}
-            <p className="text-center text-xs text-slate-600 mt-2">
-              آخر تحديث:{" "}
-              {new Date(result.timestamp).toLocaleTimeString("ar-SA")}
-            </p>
+            {/* Refresh button */}
+            <button onClick={() => analyze()} disabled={loading}
+              className="w-full py-2.5 rounded-xl text-sm font-bold bg-[#13131f] border border-[#1e1e30] text-slate-400 hover:border-indigo-500/40 hover:text-white transition-colors mb-4">
+              {loading ? "⏳ جاري التحديث..." : "🔄 تحديث الإشارة"}
+            </button>
           </>
         )}
 
-        {/* Disclaimer */}
-        <p className="text-center text-xs text-slate-700 mt-6">
-          ⚠️ للأغراض التعليمية فقط — ليست نصيحة مالية
-        </p>
+        <p className="text-center text-xs text-slate-700">⚠️ للأغراض التعليمية فقط — ليست نصيحة مالية</p>
       </div>
     </main>
   );
