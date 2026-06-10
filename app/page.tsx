@@ -214,7 +214,9 @@ export default function Page() {
               {asset.label.slice(0,3)}
             </div>
             <div className="text-right">
-              <div className="text-white font-bold">{asset.label}/USD</div>
+              <div className="text-white font-bold">
+                {asset.category === "crypto" ? `${asset.label}/USD` : asset.label}
+              </div>
               <div className="text-slate-500 text-xs">{asset.name}</div>
             </div>
           </div>

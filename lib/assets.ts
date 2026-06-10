@@ -115,11 +115,40 @@ export const ASSETS: Asset[] = [
   { id: "AXSUSD",   label: "AXS",   name: "Axie Infinity",    yahoo: "AXS-USD",                        category: "crypto", sub: "layer2" },
 
   // ── Synthetic OTC (Deriv only — always open 24/7) ─────────────────────────
-  { id: "V10",   label: "V10",      name: "Volatility 10",    yahoo: "BTC-USD",  deriv: "R_10",         category: "synthetic" },
-  { id: "V25",   label: "V25",      name: "Volatility 25",    yahoo: "BTC-USD",  deriv: "R_25",         category: "synthetic" },
-  { id: "V50",   label: "V50",      name: "Volatility 50",    yahoo: "BTC-USD",  deriv: "R_50",         category: "synthetic" },
-  { id: "V75",   label: "V75",      name: "Volatility 75",    yahoo: "BTC-USD",  deriv: "R_75",         category: "synthetic" },
-  { id: "V100",  label: "V100",     name: "Volatility 100",   yahoo: "BTC-USD",  deriv: "R_100",        category: "synthetic" },
+
+  // Volatility Indices
+  { id: "V10",    label: "V10",     name: "Volatility 10",      yahoo: "BTC-USD", deriv: "R_10",         category: "synthetic" },
+  { id: "V25",    label: "V25",     name: "Volatility 25",      yahoo: "BTC-USD", deriv: "R_25",         category: "synthetic" },
+  { id: "V50",    label: "V50",     name: "Volatility 50",      yahoo: "BTC-USD", deriv: "R_50",         category: "synthetic" },
+  { id: "V75",    label: "V75",     name: "Volatility 75",      yahoo: "BTC-USD", deriv: "R_75",         category: "synthetic" },
+  { id: "V100",   label: "V100",    name: "Volatility 100",     yahoo: "BTC-USD", deriv: "R_100",        category: "synthetic" },
+  { id: "V10S",   label: "V10(s)",  name: "Volatility 10 (1s)", yahoo: "BTC-USD", deriv: "1HZ10V",       category: "synthetic" },
+  { id: "V25S",   label: "V25(s)",  name: "Volatility 25 (1s)", yahoo: "BTC-USD", deriv: "1HZ25V",       category: "synthetic" },
+  { id: "V50S",   label: "V50(s)",  name: "Volatility 50 (1s)", yahoo: "BTC-USD", deriv: "1HZ50V",       category: "synthetic" },
+  { id: "V75S",   label: "V75(s)",  name: "Volatility 75 (1s)", yahoo: "BTC-USD", deriv: "1HZ75V",       category: "synthetic" },
+  { id: "V100S",  label: "V100(s)", name: "Volatility 100 (1s)",yahoo: "BTC-USD", deriv: "1HZ100V",      category: "synthetic" },
+
+  // Crash & Boom Indices
+  { id: "BOOM300",   label: "Boom 300",   name: "Boom 300",   yahoo: "BTC-USD", deriv: "BOOM300N",   category: "synthetic" },
+  { id: "BOOM500",   label: "Boom 500",   name: "Boom 500",   yahoo: "BTC-USD", deriv: "BOOM500",    category: "synthetic" },
+  { id: "BOOM1000",  label: "Boom 1000",  name: "Boom 1000",  yahoo: "BTC-USD", deriv: "BOOM1000",   category: "synthetic" },
+  { id: "CRASH300",  label: "Crash 300",  name: "Crash 300",  yahoo: "BTC-USD", deriv: "CRASH300N",  category: "synthetic" },
+  { id: "CRASH500",  label: "Crash 500",  name: "Crash 500",  yahoo: "BTC-USD", deriv: "CRASH500",   category: "synthetic" },
+  { id: "CRASH1000", label: "Crash 1000", name: "Crash 1000", yahoo: "BTC-USD", deriv: "CRASH1000",  category: "synthetic" },
+
+  // Jump Indices
+  { id: "JMP10",  label: "Jump 10",  name: "Jump 10",  yahoo: "BTC-USD", deriv: "JD10",  category: "synthetic" },
+  { id: "JMP25",  label: "Jump 25",  name: "Jump 25",  yahoo: "BTC-USD", deriv: "JD25",  category: "synthetic" },
+  { id: "JMP50",  label: "Jump 50",  name: "Jump 50",  yahoo: "BTC-USD", deriv: "JD50",  category: "synthetic" },
+  { id: "JMP75",  label: "Jump 75",  name: "Jump 75",  yahoo: "BTC-USD", deriv: "JD75",  category: "synthetic" },
+  { id: "JMP100", label: "Jump 100", name: "Jump 100", yahoo: "BTC-USD", deriv: "JD100", category: "synthetic" },
+
+  // Step Index
+  { id: "STEP",   label: "Step",     name: "Step Index",  yahoo: "BTC-USD", deriv: "STPRIDX", category: "synthetic" },
+
+  // Range Break
+  { id: "RB200",  label: "RB 200",  name: "Range Break 200", yahoo: "BTC-USD", deriv: "RNGBR200",  category: "synthetic" },
+  { id: "RB100",  label: "RB 100",  name: "Range Break 100", yahoo: "BTC-USD", deriv: "RNGBR100",  category: "synthetic" },
 
   // ── Commodities ───────────────────────────────────────────────────────────
   { id: "GOLD",   label: "XAU", name: "ذهب",  yahoo: "GC=F", deriv: "frxXAUUSD", category: "commodity" },
