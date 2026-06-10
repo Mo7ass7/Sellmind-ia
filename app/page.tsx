@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 
 type SignalType = "BUY" | "SELL" | "NEUTRAL";
 
@@ -139,6 +140,12 @@ export default function Page() {
           <p className="text-slate-400 text-sm">
             إشارة شراء أو بيع فقط عند تطابق جميع المؤشرات
           </p>
+          <Link
+            href="/scanner"
+            className="mt-3 inline-block px-4 py-1.5 bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs rounded-full hover:bg-indigo-600/40 transition-colors"
+          >
+            🔭 ماسح جميع الأسواق (Quotex)
+          </Link>
         </div>
 
         {/* Form */}
