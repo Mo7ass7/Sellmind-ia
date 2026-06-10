@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculateSignals, getSignals } from "@/lib/indicators";
+import { analyzeCandlePatterns } from "@/lib/candles";
 
 const RANGE: Record<string, string> = {
   "1m": "1d",
@@ -50,23 +51,27 @@ export async function GET(req: NextRequest) {
     const closes = clean(q.close);
     const highs  = clean(q.high);
     const lows   = clean(q.low);
+    const opens  = clean(q.open);
 
     // Remove NaN candles
     const valid = closes.map((_, i) => i).filter(
-      (i) => !isNaN(closes[i]) && !isNaN(highs[i]) && !isNaN(lows[i])
+      (i) => !isNaN(closes[i]) && !isNaN(highs[i]) && !isNaN(lows[i]) && !isNaN(opens[i])
     );
 
     const c = valid.map((i) => closes[i]);
     const h = valid.map((i) => highs[i]);
     const l = valid.map((i) => lows[i]);
+    const o = valid.map((i) => opens[i]);
 
     if (c.length < 60) throw new Error("البيانات غير كافية لحساب المؤشرات");
 
-    const values = calculateSignals(c, h, l);
+    const values  = calculateSignals(c, h, l);
     const signals = getSignals(values);
+    const candles = analyzeCandlePatterns(o, h, l, c);
 
     return NextResponse.json({
       ...signals,
+      candles,
       symbol: result.meta.symbol,
       currency: result.meta.currency ?? "USD",
       price: result.meta.regularMarketPrice ?? c[c.length - 1],

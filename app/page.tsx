@@ -5,6 +5,25 @@ import Link from "next/link";
 
 type SignalType = "BUY" | "SELL" | "NEUTRAL";
 
+type Direction = "UP" | "DOWN" | "NEUTRAL";
+
+interface CandlePattern {
+  name: string;
+  nameAr: string;
+  direction: Direction;
+  strength: 1 | 2 | 3;
+  emoji: string;
+}
+
+interface CandleAnalysis {
+  patterns: CandlePattern[];
+  prediction: Direction;
+  confidence: number;
+  label: string;
+  upCount: number;
+  downCount: number;
+}
+
 interface Result {
   signal: SignalType;
   indicators: Record<string, SignalType>;
@@ -21,6 +40,7 @@ interface Result {
     stochD: number;
     close: number;
   };
+  candles: CandleAnalysis;
   buyCount: number;
   sellCount: number;
   totalCount: number;
@@ -85,6 +105,108 @@ function RSIBar({ value }: { value: number }) {
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs text-slate-400 w-8">{pct.toFixed(0)}</span>
+    </div>
+  );
+}
+
+const CANDLE_SIG = {
+  UP:      { label: "إغلاق أخضر",  color: "text-emerald-400", bg: "bg-emerald-950/50 border-emerald-500/50", icon: "🟢", arrow: "↑" },
+  DOWN:    { label: "إغلاق أحمر",  color: "text-red-400",     bg: "bg-red-950/50 border-red-500/50",         icon: "🔴", arrow: "↓" },
+  NEUTRAL: { label: "غير محدد",    color: "text-slate-400",   bg: "bg-[#13131f] border-[#1e1e30]",           icon: "⚪", arrow: "→" },
+};
+
+const STR_LABEL: Record<number, string> = { 1: "ضعيف", 2: "متوسط", 3: "قوي" };
+const STR_COLOR: Record<number, string> = { 1: "text-slate-500", 2: "text-yellow-400", 3: "text-emerald-400" };
+
+function CandleSection({ candles }: { candles: CandleAnalysis }) {
+  const cs = CANDLE_SIG[candles.prediction];
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-4">
+      <h2 className="text-slate-300 font-bold mb-3 text-sm flex items-center gap-2">
+        🕯️ تحليل الشمعة الحالية
+        <span className="text-slate-600 text-xs font-normal">(OTC)</span>
+      </h2>
+
+      {/* Prediction banner */}
+      <div className={`border rounded-xl p-4 mb-3 flex items-center justify-between ${cs.bg}`}>
+        <div>
+          <div className={`text-2xl font-black ${cs.color}`}>
+            {cs.arrow} {cs.label}
+          </div>
+          <div className="text-slate-500 text-xs mt-0.5">
+            {candles.patterns.length > 0
+              ? `${candles.patterns.length} نمط محدد · ثقة ${candles.confidence}%`
+              : "لم يُكتشف نمط واضح"}
+          </div>
+        </div>
+        <span className="text-4xl">{cs.icon}</span>
+      </div>
+
+      {/* Confidence bar */}
+      {candles.confidence > 0 && (
+        <div className="mb-3">
+          <div className="flex justify-between text-xs text-slate-500 mb-1">
+            <span>قوة الإشارة</span>
+            <span>{candles.confidence}%</span>
+          </div>
+          <div className="h-2 bg-[#0d0d14] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                candles.prediction === "UP" ? "bg-emerald-500" :
+                candles.prediction === "DOWN" ? "bg-red-500" : "bg-slate-500"
+              }`}
+              style={{ width: `${candles.confidence}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Patterns list */}
+      {candles.patterns.length > 0 && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="w-full text-xs text-slate-500 hover:text-slate-300 text-right transition-colors mb-2"
+          >
+            {expanded ? "▲ إخفاء الأنماط" : `▼ عرض ${candles.patterns.length} نمط مكتشف`}
+          </button>
+
+          {expanded && (
+            <div className="space-y-1.5">
+              {candles.patterns.map((p, i) => {
+                const dir = p.direction === "UP"
+                  ? "text-emerald-400" : p.direction === "DOWN"
+                  ? "text-red-400" : "text-slate-400";
+                return (
+                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#1e1e30] last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold ${STR_COLOR[p.strength]}`}>
+                        {"★".repeat(p.strength)}
+                      </span>
+                      <span className={`text-xs ${dir}`}>
+                        {p.direction === "UP" ? "↑" : p.direction === "DOWN" ? "↓" : "→"}
+                        {" "}{STR_LABEL[p.strength]}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-200 text-sm">{p.emoji} {p.nameAr}</span>
+                      <span className="text-slate-600 text-xs mr-1">({p.name})</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {candles.patterns.length === 0 && (
+        <p className="text-slate-600 text-xs text-center py-2">
+          لا توجد أنماط شمعيات واضحة في الوقت الحالي
+        </p>
+      )}
     </div>
   );
 }
@@ -262,8 +384,13 @@ export default function Page() {
               )}
             </div>
 
+            {/* Candle patterns */}
+            {result.candles && (
+              <CandleSection candles={result.candles} />
+            )}
+
             {/* Timestamp */}
-            <p className="text-center text-xs text-slate-600">
+            <p className="text-center text-xs text-slate-600 mt-2">
               آخر تحديث:{" "}
               {new Date(result.timestamp).toLocaleTimeString("ar-SA")}
             </p>

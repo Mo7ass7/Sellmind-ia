@@ -5,7 +5,10 @@ import Link from "next/link";
 import { CATEGORY_LABEL } from "@/lib/assets";
 
 type SignalType = "BUY" | "SELL" | "NEUTRAL";
-type Category = "all" | "forex" | "crypto" | "commodity" | "index";
+type Direction  = "UP" | "DOWN" | "NEUTRAL";
+type Category   = "all" | "forex" | "crypto" | "commodity" | "index";
+
+interface CandlePattern { nameAr: string; direction: Direction; strength: 1|2|3; emoji: string }
 
 interface AssetResult {
   id: string;
@@ -18,6 +21,9 @@ interface AssetResult {
   sellCount: number;
   totalCount: number;
   indicators?: Record<string, SignalType>;
+  candle?: Direction;
+  candleConf?: number;
+  patterns?: CandlePattern[];
   error?: boolean;
 }
 
@@ -96,8 +102,22 @@ function AssetCard({ asset }: { asset: AssetResult }) {
 
       <StrengthBar buy={asset.buyCount} sell={asset.sellCount} total={asset.totalCount} />
 
+      {/* Candle prediction badge */}
+      {asset.candle && asset.candle !== "NEUTRAL" && (
+        <div className={`mt-2 flex items-center gap-1.5 text-xs ${
+          asset.candle === "UP" ? "text-emerald-400" : "text-red-400"
+        }`}>
+          <span>🕯️</span>
+          <span>الشمعة: {asset.candle === "UP" ? "↑ أخضر" : "↓ أحمر"}</span>
+          {asset.candleConf !== undefined && (
+            <span className="text-slate-600">({asset.candleConf}%)</span>
+          )}
+        </div>
+      )}
+
       {open && asset.indicators && (
         <div className="mt-3 pt-3 border-t border-[#1e1e30] space-y-1">
+          <p className="text-slate-600 text-xs mb-1">المؤشرات</p>
           {Object.entries(asset.indicators).map(([name, sig]) => {
             const c = SIG[sig];
             return (
@@ -107,6 +127,21 @@ function AssetCard({ asset }: { asset: AssetResult }) {
               </div>
             );
           })}
+
+          {/* Candle patterns */}
+          {asset.patterns && asset.patterns.length > 0 && (
+            <>
+              <p className="text-slate-600 text-xs mt-2 pt-2 border-t border-[#1e1e30]">أنماط الشمعة</p>
+              {asset.patterns.map((p, i) => (
+                <div key={i} className="flex justify-between text-xs">
+                  <span className={p.direction === "UP" ? "text-emerald-400" : p.direction === "DOWN" ? "text-red-400" : "text-slate-400"}>
+                    {p.direction === "UP" ? "↑" : p.direction === "DOWN" ? "↓" : "→"}
+                  </span>
+                  <span className="text-slate-300">{p.emoji} {p.nameAr}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
 

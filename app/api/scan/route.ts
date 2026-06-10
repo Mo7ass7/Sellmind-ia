@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculateSignals, getSignals } from "@/lib/indicators";
+import { analyzeCandlePatterns } from "@/lib/candles";
 import { ASSETS, Asset } from "@/lib/assets";
 
 const RANGE: Record<string, string> = {
@@ -36,19 +37,22 @@ async function fetchAsset(asset: Asset, interval: string) {
   const closes = clean(q.close);
   const highs  = clean(q.high);
   const lows   = clean(q.low);
+  const opens  = clean(q.open);
 
   const valid = closes
     .map((_, i) => i)
-    .filter((i) => !isNaN(closes[i]) && !isNaN(highs[i]) && !isNaN(lows[i]));
+    .filter((i) => !isNaN(closes[i]) && !isNaN(highs[i]) && !isNaN(lows[i]) && !isNaN(opens[i]));
 
   if (valid.length < 60) throw new Error("insufficient data");
 
   const c = valid.map((i) => closes[i]);
   const h = valid.map((i) => highs[i]);
   const l = valid.map((i) => lows[i]);
+  const o = valid.map((i) => opens[i]);
 
   const values  = calculateSignals(c, h, l);
   const signals = getSignals(values);
+  const candles = analyzeCandlePatterns(o, h, l, c);
 
   return {
     id:       asset.id,
@@ -56,11 +60,14 @@ async function fetchAsset(asset: Asset, interval: string) {
     category: asset.category,
     price:    result.meta.regularMarketPrice ?? c[c.length - 1],
     currency: result.meta.currency ?? "USD",
-    signal:   signals.signal,
-    buyCount: signals.buyCount,
-    sellCount: signals.sellCount,
-    totalCount: signals.totalCount,
-    indicators: signals.indicators,
+    signal:      signals.signal,
+    buyCount:    signals.buyCount,
+    sellCount:   signals.sellCount,
+    totalCount:  signals.totalCount,
+    indicators:  signals.indicators,
+    candle:      candles.prediction,
+    candleConf:  candles.confidence,
+    patterns:    candles.patterns,
   };
 }
 
