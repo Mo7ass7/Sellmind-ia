@@ -9,17 +9,53 @@ export interface Asset {
 }
 
 export const ASSETS: Asset[] = [
-  // ── Forex ─────────────────────────────────────────────────────────────────
-  { id: "EURUSD", label: "EUR/USD", name: "يورو/دولار",    yahoo: "EURUSD=X", deriv: "frxEURUSD", category: "forex" },
-  { id: "GBPUSD", label: "GBP/USD", name: "جنيه/دولار",   yahoo: "GBPUSD=X", deriv: "frxGBPUSD", category: "forex" },
-  { id: "USDJPY", label: "USD/JPY", name: "دولار/ين",      yahoo: "USDJPY=X", deriv: "frxUSDJPY", category: "forex" },
-  { id: "AUDUSD", label: "AUD/USD", name: "أسترالي/دولار", yahoo: "AUDUSD=X", deriv: "frxAUDUSD", category: "forex" },
-  { id: "USDCAD", label: "USD/CAD", name: "دولار/كندي",    yahoo: "USDCAD=X", deriv: "frxUSDCAD", category: "forex" },
-  { id: "USDCHF", label: "USD/CHF", name: "دولار/فرنك",    yahoo: "USDCHF=X", deriv: "frxUSDCHF", category: "forex" },
-  { id: "NZDUSD", label: "NZD/USD", name: "نيوزيلندي/دولار",yahoo:"NZDUSD=X", deriv: "frxNZDUSD", category: "forex" },
-  { id: "EURGBP", label: "EUR/GBP", name: "يورو/جنيه",     yahoo: "EURGBP=X", deriv: "frxEURGBP", category: "forex" },
-  { id: "EURJPY", label: "EUR/JPY", name: "يورو/ين",       yahoo: "EURJPY=X", deriv: "frxEURJPY", category: "forex" },
-  { id: "GBPJPY", label: "GBP/JPY", name: "جنيه/ين",      yahoo: "GBPJPY=X", deriv: "frxGBPJPY", category: "forex" },
+  // ── Forex — Major ─────────────────────────────────────────────────────────
+  { id: "EURUSD", label: "EUR/USD", name: "يورو/دولار",       yahoo: "EURUSD=X", deriv: "frxEURUSD", category: "forex" },
+  { id: "GBPUSD", label: "GBP/USD", name: "جنيه/دولار",      yahoo: "GBPUSD=X", deriv: "frxGBPUSD", category: "forex" },
+  { id: "USDJPY", label: "USD/JPY", name: "دولار/ين",         yahoo: "USDJPY=X", deriv: "frxUSDJPY", category: "forex" },
+  { id: "AUDUSD", label: "AUD/USD", name: "أسترالي/دولار",    yahoo: "AUDUSD=X", deriv: "frxAUDUSD", category: "forex" },
+  { id: "USDCAD", label: "USD/CAD", name: "دولار/كندي",       yahoo: "USDCAD=X", deriv: "frxUSDCAD", category: "forex" },
+  { id: "USDCHF", label: "USD/CHF", name: "دولار/فرنك",       yahoo: "USDCHF=X", deriv: "frxUSDCHF", category: "forex" },
+  { id: "NZDUSD", label: "NZD/USD", name: "نيوزيلندي/دولار",  yahoo: "NZDUSD=X", deriv: "frxNZDUSD", category: "forex" },
+
+  // ── Forex — Minor EUR ──────────────────────────────────────────────────────
+  { id: "EURGBP", label: "EUR/GBP", name: "يورو/جنيه",        yahoo: "EURGBP=X", deriv: "frxEURGBP", category: "forex" },
+  { id: "EURJPY", label: "EUR/JPY", name: "يورو/ين",          yahoo: "EURJPY=X", deriv: "frxEURJPY", category: "forex" },
+  { id: "EURAUD", label: "EUR/AUD", name: "يورو/أسترالي",     yahoo: "EURAUD=X", deriv: "frxEURAUD", category: "forex" },
+  { id: "EURCAD", label: "EUR/CAD", name: "يورو/كندي",        yahoo: "EURCAD=X", deriv: "frxEURCAD", category: "forex" },
+  { id: "EURCHF", label: "EUR/CHF", name: "يورو/فرنك",        yahoo: "EURCHF=X", deriv: "frxEURCHF", category: "forex" },
+  { id: "EURNZD", label: "EUR/NZD", name: "يورو/نيوزيلندي",   yahoo: "EURNZD=X",                    category: "forex" },
+
+  // ── Forex — Minor GBP ──────────────────────────────────────────────────────
+  { id: "GBPJPY", label: "GBP/JPY", name: "جنيه/ين",         yahoo: "GBPJPY=X", deriv: "frxGBPJPY", category: "forex" },
+  { id: "GBPAUD", label: "GBP/AUD", name: "جنيه/أسترالي",    yahoo: "GBPAUD=X", deriv: "frxGBPAUD", category: "forex" },
+  { id: "GBPCAD", label: "GBP/CAD", name: "جنيه/كندي",       yahoo: "GBPCAD=X", deriv: "frxGBPCAD", category: "forex" },
+  { id: "GBPCHF", label: "GBP/CHF", name: "جنيه/فرنك",       yahoo: "GBPCHF=X", deriv: "frxGBPCHF", category: "forex" },
+  { id: "GBPNZD", label: "GBP/NZD", name: "جنيه/نيوزيلندي",  yahoo: "GBPNZD=X",                    category: "forex" },
+
+  // ── Forex — Minor AUD ──────────────────────────────────────────────────────
+  { id: "AUDJPY", label: "AUD/JPY", name: "أسترالي/ين",       yahoo: "AUDJPY=X", deriv: "frxAUDJPY", category: "forex" },
+  { id: "AUDCAD", label: "AUD/CAD", name: "أسترالي/كندي",     yahoo: "AUDCAD=X",                    category: "forex" },
+  { id: "AUDCHF", label: "AUD/CHF", name: "أسترالي/فرنك",     yahoo: "AUDCHF=X",                    category: "forex" },
+  { id: "AUDNZD", label: "AUD/NZD", name: "أسترالي/نيوزيلندي",yahoo: "AUDNZD=X",                    category: "forex" },
+
+  // ── Forex — Minor Others ───────────────────────────────────────────────────
+  { id: "CADJPY", label: "CAD/JPY", name: "كندي/ين",          yahoo: "CADJPY=X",                    category: "forex" },
+  { id: "CADCHF", label: "CAD/CHF", name: "كندي/فرنك",        yahoo: "CADCHF=X",                    category: "forex" },
+  { id: "CHFJPY", label: "CHF/JPY", name: "فرنك/ين",          yahoo: "CHFJPY=X",                    category: "forex" },
+  { id: "NZDJPY", label: "NZD/JPY", name: "نيوزيلندي/ين",     yahoo: "NZDJPY=X",                    category: "forex" },
+  { id: "NZDCAD", label: "NZD/CAD", name: "نيوزيلندي/كندي",   yahoo: "NZDCAD=X",                    category: "forex" },
+  { id: "NZDCHF", label: "NZD/CHF", name: "نيوزيلندي/فرنك",   yahoo: "NZDCHF=X",                    category: "forex" },
+
+  // ── Forex — Exotic ─────────────────────────────────────────────────────────
+  { id: "USDMXN", label: "USD/MXN", name: "دولار/بيسو",       yahoo: "USDMXN=X",                    category: "forex" },
+  { id: "USDTRY", label: "USD/TRY", name: "دولار/ليرة",       yahoo: "USDTRY=X",                    category: "forex" },
+  { id: "USDZAR", label: "USD/ZAR", name: "دولار/راند",        yahoo: "USDZAR=X",                    category: "forex" },
+  { id: "USDSGD", label: "USD/SGD", name: "دولار/سنغافوري",    yahoo: "USDSGD=X",                    category: "forex" },
+  { id: "USDHKD", label: "USD/HKD", name: "دولار/هونج كونج",   yahoo: "USDHKD=X",                    category: "forex" },
+  { id: "USDNOK", label: "USD/NOK", name: "دولار/كرون نرويجي", yahoo: "USDNOK=X",                    category: "forex" },
+  { id: "USDSEK", label: "USD/SEK", name: "دولار/كرون سويدي",  yahoo: "USDSEK=X",                    category: "forex" },
+  { id: "USDPLN", label: "USD/PLN", name: "دولار/زلوتي",       yahoo: "USDPLN=X",                    category: "forex" },
 
   // ── Crypto — Layer 1 ──────────────────────────────────────────────────────
   { id: "BTCUSD",   label: "BTC",   name: "Bitcoin",          yahoo: "BTC-USD",   deriv: "cryBTCUSD",  category: "crypto", sub: "layer1" },

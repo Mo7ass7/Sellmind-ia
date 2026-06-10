@@ -40,17 +40,24 @@ const CANDLE_SIG = {
 };
 
 // ── Asset Selector Modal ──────────────────────────────────────────────────────
-const CRYPTO_ASSETS = ASSETS.filter(a => a.category === "crypto" || a.category === "synthetic");
-const SUB_TABS = ["all","layer1","meme","defi","layer2","synthetic"] as const;
-const SUB_LABELS: Record<string,string> = { all:"الكل", layer1:"Layer 1", meme:"Meme", defi:"DeFi", layer2:"Layer 2", synthetic:"OTC" };
+const ALL_SELECTABLE = ASSETS.filter(a => a.category !== "index");
+const SUB_TABS = ["all","forex","layer1","meme","defi","layer2","synthetic"] as const;
+const SUB_LABELS: Record<string,string> = {
+  all:"الكل", forex:"فوركس", layer1:"Layer 1",
+  meme:"Meme", defi:"DeFi", layer2:"Layer 2", synthetic:"OTC"
+};
 
 function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:()=>void }) {
   const [q, setQ]     = useState("");
   const [tab, setTab] = useState<string>("all");
 
-  const filtered = CRYPTO_ASSETS.filter(a => {
-    const matchTab = tab === "all" ? true : tab === "synthetic" ? a.category === "synthetic" : a.sub === tab;
-    const matchQ   = q === "" || a.label.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
+  const filtered = ALL_SELECTABLE.filter(a => {
+    let matchTab = false;
+    if (tab === "all")       matchTab = true;
+    else if (tab === "forex") matchTab = a.category === "forex";
+    else if (tab === "synthetic") matchTab = a.category === "synthetic";
+    else matchTab = a.sub === tab;
+    const matchQ = q === "" || a.label.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
     return matchTab && matchQ;
   });
 
@@ -60,14 +67,14 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
         {/* Header */}
         <div className="p-4 border-b border-[#1e1e30]">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-white font-bold">اختر عملة رقمية</span>
+            <span className="text-white font-bold">اختر أصل للتحليل</span>
             <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
           </div>
           <input
             autoFocus
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="ابحث... BTC, ETH, SOL"
+            placeholder="ابحث... BTC, ETH, EUR/USD, GBP"
             className="w-full bg-[#0d0d14] border border-[#1e1e30] rounded-xl px-4 py-2 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-indigo-500"
             dir="ltr"
           />
@@ -142,15 +149,23 @@ export default function Page() {
     setLoading(true);
     setError(null);
     try {
-      let res;
-      // Use Deriv API if symbol available, else Yahoo Finance
+      let data: Result | null = null;
+
+      // Try Deriv first, fallback to Yahoo Finance automatically
       if (a.deriv) {
-        res = await fetch(`/api/deriv?symbol=${encodeURIComponent(a.deriv)}&interval=${iv}`);
-      } else {
-        res = await fetch(`/api/signal?symbol=${encodeURIComponent(a.yahoo)}&interval=${iv}`);
+        try {
+          const res = await fetch(`/api/deriv?symbol=${encodeURIComponent(a.deriv)}&interval=${iv}`);
+          const d: Result = await res.json();
+          if (!d.error) data = d;
+        } catch { /* fallback below */ }
       }
-      const data: Result = await res.json();
-      if (data.error) throw new Error(data.error);
+
+      if (!data) {
+        const res = await fetch(`/api/signal?symbol=${encodeURIComponent(a.yahoo)}&interval=${iv}`);
+        data = await res.json();
+      }
+
+      if (data!.error) throw new Error(data!.error);
       setResult(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "خطأ غير متوقع");
