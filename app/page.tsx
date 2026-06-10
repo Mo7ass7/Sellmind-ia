@@ -22,6 +22,22 @@ interface Result {
   error?: string;
 }
 
+interface SpikeState {
+  lastSpikeIdx: number; candlesSince: number;
+  expectedInterval: number; proximity: number;
+  direction: "UP" | "DOWN";
+}
+
+interface OtcData {
+  source: string; derivSymbol: string; price: number;
+  interval: string; signal: SignalType; confidence: number;
+  syntheticType: string; spike: SpikeState | null;
+  reason: string; pattern: string;
+  indicators: Record<string, number>;
+  candleCount: number; timestamp: string;
+  error?: string;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const INTERVALS = ["1m","5m","15m","30m","1h","1d"];
 const INTERVAL_AR: Record<string,string> = { "1m":"1 دقيقة","5m":"5 دقائق","15m":"15 دقيقة","30m":"30 دقيقة","1h":"ساعة","1d":"يومي" };
@@ -64,23 +80,17 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-2" onClick={onClose}>
       <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="p-4 border-b border-[#1e1e30]">
           <div className="flex items-center justify-between mb-3">
             <span className="text-white font-bold">اختر أصل للتحليل</span>
             <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
           </div>
-          <input
-            autoFocus
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="ابحث... BTC, ETH, EUR/USD, GBP"
+          <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+            placeholder="ابحث... BTC, ETH, EUR/USD, Boom"
             className="w-full bg-[#0d0d14] border border-[#1e1e30] rounded-xl px-4 py-2 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-            dir="ltr"
-          />
+            dir="ltr" />
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 px-3 pt-2 overflow-x-auto pb-1">
           {SUB_TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -92,7 +102,6 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
           ))}
         </div>
 
-        {/* List */}
         <div className="overflow-y-auto flex-1 p-3 grid grid-cols-2 gap-2">
           {filtered.map(a => (
             <button key={a.id} onClick={() => { onSelect(a); onClose(); }}
@@ -104,7 +113,9 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
                 <div className="text-white text-xs font-bold">{a.label}</div>
                 <div className="text-slate-500 text-xs truncate max-w-[80px]">{a.name}</div>
               </div>
-              {a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
+              {a.category === "synthetic"
+                ? <span className="mr-auto text-xs text-purple-500">⚡</span>
+                : a.deriv && <span className="mr-auto text-xs text-emerald-600">●</span>}
             </button>
           ))}
           {filtered.length === 0 && (
@@ -112,14 +123,14 @@ function AssetModal({ onSelect, onClose }: { onSelect:(a:Asset)=>void; onClose:(
           )}
         </div>
         <div className="px-4 py-2 border-t border-[#1e1e30]">
-          <span className="text-xs text-slate-600">● = بيانات Deriv (OTC) متاحة</span>
+          <span className="text-xs text-slate-600">⚡ = OTC Engine · ● = Deriv Live</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Indicator Row ─────────────────────────────────────────────────────────────
+// ── Indicator Row (standard TA) ───────────────────────────────────────────────
 function IndicatorRow({ name, sig, detail }: { name:string; sig:SignalType; detail:string }) {
   const c = SIG[sig];
   return (
@@ -133,12 +144,152 @@ function IndicatorRow({ name, sig, detail }: { name:string; sig:SignalType; deta
   );
 }
 
+// ── OTC Signal Panel ──────────────────────────────────────────────────────────
+function OtcPanel({ data, loading, onRefresh, interval }: {
+  data: OtcData; loading: boolean; onRefresh: () => void; interval: string
+}) {
+  const [showInd, setShowInd] = useState(false);
+  const sig = SIG[data.signal];
+  const sp  = data.spike;
+  const isBoom  = data.derivSymbol.toUpperCase().startsWith("BOOM");
+  const isCrash = data.derivSymbol.toUpperCase().startsWith("CRASH");
+
+  return (
+    <>
+      {/* Live price */}
+      <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3 text-center">
+        <div className="text-3xl font-black text-white tracking-tight">
+          {data.price.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+        </div>
+        <div className="text-slate-500 text-xs mt-0.5">
+          {INTERVAL_AR[interval]} · {new Date(data.timestamp).toLocaleTimeString("ar-SA")}
+        </div>
+      </div>
+
+      {/* OTC Signal banner */}
+      <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3">
+
+        {/* Confidence + Signal */}
+        <div className={`rounded-xl p-3 mb-4 text-center border ${sig.bg}`}>
+          <div className="text-4xl mb-1">{sig.emoji}</div>
+          <div className={`text-2xl font-black ${sig.text}`}>{sig.label}</div>
+          <div className="text-slate-400 text-xs mt-1 font-mono">
+            ثقة المحرك: <span className={`font-bold ${sig.text}`}>{data.confidence}%</span>
+          </div>
+        </div>
+
+        {/* Pattern label */}
+        <div className="bg-[#0d0d14] border border-[#1e1e30] rounded-xl p-3 mb-3 text-center">
+          <div className="text-slate-200 text-sm font-bold">{data.pattern}</div>
+          <div className="text-slate-500 text-xs mt-1 leading-relaxed" dir="ltr">{data.reason}</div>
+        </div>
+
+        {/* Spike proximity bar (Boom/Crash only) */}
+        {sp && (isBoom || isCrash) && (
+          <div className="bg-[#0d0d14] border border-[#1e1e30] rounded-xl p-3 mb-3">
+            <div className="flex justify-between text-xs text-slate-400 mb-2 font-bold">
+              <span>{isBoom ? "⚡ اقتراب Boom" : "⚡ اقتراب Crash"}</span>
+              <span className={sp.proximity >= 75 ? "text-yellow-400" : sp.proximity >= 90 ? "text-red-400 animate-pulse" : "text-slate-400"}>
+                {sp.proximity}%
+              </span>
+            </div>
+            <div className="h-3 bg-[#13131f] rounded-full overflow-hidden border border-[#1e1e30]">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  sp.proximity >= 90 ? "bg-gradient-to-r from-orange-500 to-red-500 animate-pulse" :
+                  sp.proximity >= 75 ? "bg-gradient-to-r from-yellow-500 to-orange-500" :
+                  sp.proximity >= 50 ? "bg-gradient-to-r from-indigo-500 to-yellow-500" :
+                  "bg-indigo-600"
+                }`}
+                style={{ width: `${sp.proximity}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-600 mt-1.5">
+              <span>{sp.candlesSince} شمعة منذ آخر spike</span>
+              <span>الفاصل: {sp.expectedInterval}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Confidence bar */}
+        <div className="mb-4">
+          <div className="flex justify-between text-xs text-slate-500 mb-1">
+            <span>قوة إشارة المحرك</span><span>{data.confidence}%</span>
+          </div>
+          <div className="h-2 bg-[#0d0d14] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                data.signal === "BUY"  ? "bg-emerald-500" :
+                data.signal === "SELL" ? "bg-red-500" : "bg-slate-500"
+              }`}
+              style={{ width: `${data.confidence}%` }}
+            />
+          </div>
+        </div>
+
+        {/* CALL / PUT Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <button className={`rounded-xl py-4 font-black text-lg transition-all border-2 ${
+            data.signal === "BUY"
+              ? "bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-900/50 scale-105"
+              : "bg-emerald-950/30 border-emerald-800/50 text-emerald-700"
+          }`}>
+            <div>CALL ↑</div>
+            <div className="text-xs font-normal mt-0.5 opacity-80">{PAYOUT}% ربح</div>
+          </button>
+
+          <button className={`rounded-xl py-4 font-black text-lg transition-all border-2 ${
+            data.signal === "SELL"
+              ? "bg-red-600 border-red-400 text-white shadow-lg shadow-red-900/50 scale-105"
+              : "bg-red-950/30 border-red-800/50 text-red-700"
+          }`}>
+            <div>PUT ↓</div>
+            <div className="text-xs font-normal mt-0.5 opacity-80">{PAYOUT}% ربح</div>
+          </button>
+        </div>
+
+        {loading && <div className="text-center text-slate-500 text-xs mt-2">⟳ تحديث...</div>}
+      </div>
+
+      {/* OTC engine indicators (numeric) */}
+      <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl mb-3 overflow-hidden">
+        <button onClick={() => setShowInd(!showInd)}
+          className="w-full flex items-center justify-between p-4 text-slate-300 text-sm font-bold">
+          <span>⚙️ بيانات المحرك الاصطناعي</span>
+          <span className="text-slate-500">{showInd ? "▲" : "▼"}</span>
+        </button>
+        {showInd && (
+          <div className="px-4 pb-4 space-y-2">
+            <div className="text-xs text-slate-500 mb-2 text-right" dir="ltr">
+              نوع المؤشر: <span className="text-purple-400 font-bold">{data.syntheticType}</span>
+              {" "}· {data.candleCount} شمعة
+            </div>
+            {Object.entries(data.indicators).map(([k, v]) => (
+              <div key={k} className="flex justify-between py-1.5 border-b border-[#1e1e30] last:border-0">
+                <span className="text-slate-300 text-xs font-mono">{typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: 4 }) : v}</span>
+                <span className="text-slate-500 text-xs">{k}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Refresh */}
+      <button onClick={onRefresh} disabled={loading}
+        className="w-full py-2.5 rounded-xl text-sm font-bold bg-[#13131f] border border-[#1e1e30] text-slate-400 hover:border-purple-500/40 hover:text-white transition-colors mb-4">
+        {loading ? "⏳ جاري التحديث..." : "🔄 تحديث إشارة OTC"}
+      </button>
+    </>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Page() {
   const [asset,     setAsset]    = useState<Asset>(ASSETS.find(a=>a.id==="BTCUSD")!);
   const [interval,  setInterval] = useState("1m");
   const [loading,   setLoading]  = useState(false);
   const [result,    setResult]   = useState<Result | null>(null);
+  const [otcData,   setOtcData]  = useState<OtcData | null>(null);
   const [error,     setError]    = useState<string | null>(null);
   const [showModal, setShowModal]= useState(false);
   const [showDetail,setShowDetail]=useState(false);
@@ -148,16 +299,28 @@ export default function Page() {
   const analyze = useCallback(async (a = asset, iv = interval) => {
     setLoading(true);
     setError(null);
+
     try {
+      // ── OTC synthetic path ────────────────────────────────────────────────
+      if (a.category === "synthetic" && a.deriv) {
+        const res = await fetch(`/api/otc?symbol=${encodeURIComponent(a.deriv)}&interval=${iv}`);
+        const d: OtcData = await res.json();
+        if (d.error) throw new Error(d.error);
+        setOtcData(d);
+        setResult(null);
+        return;
+      }
+
+      // ── Standard path (Deriv → Yahoo fallback) ───────────────────────────
+      setOtcData(null);
       let data: Result | null = null;
 
-      // Try Deriv first, fallback to Yahoo Finance automatically
       if (a.deriv) {
         try {
           const res = await fetch(`/api/deriv?symbol=${encodeURIComponent(a.deriv)}&interval=${iv}`);
           const d: Result = await res.json();
           if (!d.error) data = d;
-        } catch { /* fallback below */ }
+        } catch { /* fallback */ }
       }
 
       if (!data) {
@@ -184,6 +347,7 @@ export default function Page() {
   const sig  = result ? SIG[result.signal] : null;
   const cSig = result?.candles ? CANDLE_SIG[result.candles.prediction] : null;
   const v    = result?.values;
+  const isOtc = asset.category === "synthetic";
 
   const indDetails: Record<string,string> = v ? {
     "RSI (14)":          `RSI = ${v.rsi.toFixed(1)}`,
@@ -192,6 +356,8 @@ export default function Page() {
     "EMA (20/50)":       `EMA20=${v.ema20.toFixed(4)} | EMA50=${v.ema50.toFixed(4)}`,
     "Stochastic (14/3)": `K=${v.stochK.toFixed(1)} D=${v.stochD.toFixed(1)}`,
   } : {};
+
+  const sourceLabel = otcData ? "⚡ OTC Engine" : result?.source === "deriv" ? "🟢 Deriv" : "🔵 Yahoo";
 
   return (
     <main className="min-h-screen bg-[#0a0a12] px-3 py-4">
@@ -203,19 +369,24 @@ export default function Page() {
         <div className="flex items-center justify-between mb-4">
           <Link href="/scanner" className="text-slate-500 hover:text-indigo-400 text-xs transition-colors">🔭 ماسح</Link>
           <h1 className="text-xl font-black text-white">📊 Sellmind <span className="text-indigo-400">IA</span></h1>
-          <div className="text-xs text-slate-600">{result?.source === "deriv" ? "🟢 Deriv" : "🔵 Yahoo"}</div>
+          <div className={`text-xs ${isOtc ? "text-purple-400 font-bold" : "text-slate-600"}`}>{(result || otcData) ? sourceLabel : ""}</div>
         </div>
 
         {/* Asset Selector */}
         <button onClick={() => setShowModal(true)}
-          className="w-full bg-[#13131f] border border-[#1e1e30] hover:border-indigo-500/50 rounded-2xl p-4 mb-3 flex items-center justify-between transition-colors">
+          className={`w-full bg-[#13131f] border rounded-2xl p-4 mb-3 flex items-center justify-between transition-colors ${
+            isOtc ? "border-purple-500/40 hover:border-purple-500/70" : "border-[#1e1e30] hover:border-indigo-500/50"
+          }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-900/50 border border-indigo-500/40 flex items-center justify-center text-sm font-black text-indigo-300">
+            <div className={`w-10 h-10 rounded-full border flex items-center justify-center text-sm font-black ${
+              isOtc ? "bg-purple-900/50 border-purple-500/40 text-purple-300" : "bg-indigo-900/50 border-indigo-500/40 text-indigo-300"
+            }`}>
               {asset.label.slice(0,3)}
             </div>
             <div className="text-right">
-              <div className="text-white font-bold">
+              <div className="text-white font-bold flex items-center gap-1.5">
                 {asset.category === "crypto" ? `${asset.label}/USD` : asset.label}
+                {isOtc && <span className="text-xs text-purple-400 font-normal">OTC</span>}
               </div>
               <div className="text-slate-500 text-xs">{asset.name}</div>
             </div>
@@ -223,35 +394,25 @@ export default function Page() {
           <div className="text-slate-400 text-xs">تغيير ▼</div>
         </button>
 
-        {/* Live Price */}
-        {result && (
-          <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3 text-center">
-            <div className="text-3xl font-black text-white tracking-tight">
-              {result.price.toLocaleString("en-US", { maximumFractionDigits: 6 })}
-            </div>
-            <div className="text-slate-500 text-xs mt-0.5">
-              USD · {INTERVAL_AR[result.interval]} · {new Date(result.timestamp).toLocaleTimeString("ar-SA")}
-            </div>
-          </div>
-        )}
-
         {/* Interval */}
         <div className="grid grid-cols-6 gap-1.5 mb-4">
           {INTERVALS.map(iv => (
             <button key={iv} onClick={() => { setInterval(iv); analyze(asset, iv); }}
               className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
                 interval === iv
-                  ? "bg-indigo-600 border-indigo-500 text-white"
+                  ? isOtc ? "bg-purple-600 border-purple-500 text-white" : "bg-indigo-600 border-indigo-500 text-white"
                   : "bg-[#13131f] border-[#1e1e30] text-slate-400 hover:border-indigo-500/40"
               }`}>{iv}</button>
           ))}
         </div>
 
         {/* Analyze button */}
-        {!result && (
+        {!result && !otcData && (
           <button onClick={() => analyze()} disabled={loading}
-            className="w-full py-3.5 rounded-2xl font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white mb-4 transition-colors">
-            {loading ? "⏳ جاري التحليل..." : "🔍 تحليل الآن"}
+            className={`w-full py-3.5 rounded-2xl font-bold disabled:opacity-50 text-white mb-4 transition-colors ${
+              isOtc ? "bg-purple-600 hover:bg-purple-500" : "bg-indigo-600 hover:bg-indigo-500"
+            }`}>
+            {loading ? "⏳ جاري التحليل..." : isOtc ? "⚡ تشغيل محرك OTC" : "🔍 تحليل الآن"}
           </button>
         )}
 
@@ -260,13 +421,26 @@ export default function Page() {
           <div className="bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-3 text-red-300 text-sm text-center">⚠️ {error}</div>
         )}
 
-        {/* ═══ PLATFORM TRADING INTERFACE ═══ */}
+        {/* ── OTC panel ─────────────────────────────────────────────────── */}
+        {otcData && !otcData.error && (
+          <OtcPanel data={otcData} loading={loading} onRefresh={() => analyze()} interval={interval} />
+        )}
+
+        {/* ── Standard TA panel ─────────────────────────────────────────── */}
         {result && sig && (
           <>
+            {/* Live Price */}
+            <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3 text-center">
+              <div className="text-3xl font-black text-white tracking-tight">
+                {result.price.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+              </div>
+              <div className="text-slate-500 text-xs mt-0.5">
+                USD · {INTERVAL_AR[result.interval]} · {new Date(result.timestamp).toLocaleTimeString("ar-SA")}
+              </div>
+            </div>
+
             {/* Signal + CALL/PUT Buttons */}
             <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl p-4 mb-3">
-
-              {/* Signal banner */}
               <div className={`rounded-xl p-3 mb-4 text-center border ${sig.bg}`}>
                 <div className="text-4xl mb-1">{sig.emoji}</div>
                 <div className={`text-2xl font-black ${sig.text}`}>{sig.label}</div>
@@ -275,7 +449,6 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* CALL / PUT Buttons */}
               <div className="grid grid-cols-2 gap-3">
                 <button className={`rounded-xl py-4 font-black text-lg transition-all border-2 ${
                   result.signal === "BUY"
@@ -296,7 +469,6 @@ export default function Page() {
                 </button>
               </div>
 
-              {/* Candle prediction mini */}
               {cSig && result.candles.prediction !== "NEUTRAL" && (
                 <div className={`mt-3 rounded-xl p-2.5 border text-center ${cSig.bg}`}>
                   <span className={`text-sm font-bold ${cSig.color}`}>
@@ -306,10 +478,7 @@ export default function Page() {
                 </div>
               )}
 
-              {/* Loading overlay for refresh */}
-              {loading && (
-                <div className="text-center text-slate-500 text-xs mt-2">⟳ تحديث...</div>
-              )}
+              {loading && <div className="text-center text-slate-500 text-xs mt-2">⟳ تحديث...</div>}
             </div>
 
             {/* Indicator strength bars */}
@@ -326,7 +495,7 @@ export default function Page() {
               ))}
             </div>
 
-            {/* Indicators detail (collapsible) */}
+            {/* Indicators detail */}
             <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl mb-3 overflow-hidden">
               <button onClick={() => setShowDetail(!showDetail)}
                 className="w-full flex items-center justify-between p-4 text-slate-300 text-sm font-bold">
@@ -353,7 +522,7 @@ export default function Page() {
               )}
             </div>
 
-            {/* Candle patterns (collapsible) */}
+            {/* Candle patterns */}
             <div className="bg-[#13131f] border border-[#1e1e30] rounded-2xl mb-4 overflow-hidden">
               <button onClick={() => setShowCandle(!showCandle)}
                 className="w-full flex items-center justify-between p-4 text-slate-300 text-sm font-bold">
@@ -388,7 +557,7 @@ export default function Page() {
               )}
             </div>
 
-            {/* Refresh button */}
+            {/* Refresh */}
             <button onClick={() => analyze()} disabled={loading}
               className="w-full py-2.5 rounded-xl text-sm font-bold bg-[#13131f] border border-[#1e1e30] text-slate-400 hover:border-indigo-500/40 hover:text-white transition-colors mb-4">
               {loading ? "⏳ جاري التحديث..." : "🔄 تحديث الإشارة"}
